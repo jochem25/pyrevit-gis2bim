@@ -93,7 +93,7 @@ with open(pad, 'w') as f:
 **ALTIJD uitvoeren aan het einde van elke sessie** (of na een significante mijlpaal):
 
 Schrijf een update naar:
-`C:\Users\JochemK\.claude\orchestrator\sessions\pyrevit_latest.md`
+`C:\Users\JoKo\.claude\orchestrator\sessions\pyrevit_latest.md`
 
 Gebruik dit formaat:
 ```markdown
@@ -116,5 +116,5 @@ Gebruik dit formaat:
 (iets wat relevant is voor warmteverlies of report integratie)
 ```
 
-**Orchestrator context:** `C:\Users\JochemK\.claude\orchestrator\context\pyrevit.md`
-**Project registry:** `C:\Users\JochemK\.claude\orchestrator\project-registry.json`
+**Orchestrator context:** `C:\Users\JoKo\.claude\orchestrator\context\pyrevit.md`
+**Project registry:** `C:\Users\JoKo\.claude\orchestrator\project-registry.json`
