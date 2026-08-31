@@ -36,6 +36,14 @@ LEDEN = [
 ]
 WIJZIGING_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F']
 
+# Welke param-keys op de sheet resp. het titleblock landen — bepaalt of de
+# titleblock-lookup überhaupt nodig is.
+SHEET_PARAM_KEYS = ['status', 'issue_date', 'schaal', 'fase'] + \
+    ["wijziging_{}_{}".format(ltr, s)
+     for ltr in ['a', 'b', 'c', 'd', 'e', 'f'] for s in ['datum', 'omschr']]
+TITLEBLOCK_PARAM_KEYS = ['std_schaal', 'v_peil', 'noordpijl', 'kenmerknummer',
+                         'stempel', 'aantal_wijzigingen', '00_3bm_auteur']
+
 
 # ==============================================================================
 # UI WINDOW
@@ -176,19 +184,6 @@ class SheetParameterWindow(WPFWindow):
 # ==============================================================================
 # REVIT FUNCTIES
 # ==============================================================================
-def get_parameter_value(element, param_name):
-    """Haal parameter waarde op"""
-    param = element.LookupParameter(param_name)
-    if param and param.HasValue:
-        if param.StorageType == StorageType.String:
-            return param.AsString()
-        elif param.StorageType == StorageType.Integer:
-            return param.AsInteger()
-        elif param.StorageType == StorageType.Double:
-            return param.AsDouble()
-    return None
-
-
 def _resolve_param(element, param_name):
     """Zoek parameter op instance, val terug op symbol (type-parameter)."""
     param = element.LookupParameter(param_name)
@@ -202,21 +197,60 @@ def _resolve_param(element, param_name):
     return None
 
 
+# Cache van reeds gezette type-parameters: (symbol ElementId, param_name) -> True.
+# Een type-param staat op de FamilySymbol; die één keer zetten volstaat voor
+# alle titleblocks van dat type. Herhaald zetten maakt het type telkens dirty.
+_type_params_done = {}
+
+
 def set_parameter_value(element, param_name, value):
-    """Set parameter waarde - probeert instance eerst, dan type."""
+    """Set parameter waarde - probeert instance eerst, dan type.
+
+    Performance:
+    - Skipt Set() als de waarde al gelijk is (element blijft schoon -> snellere
+      regen/commit).
+    - Type-parameters (Symbol-fallback) worden per symbol maar één keer gezet.
+    """
     param = _resolve_param(element, param_name)
     if not param:
         return False
     try:
-        if param.StorageType == StorageType.String:
-            param.Set(str(value))
-        elif param.StorageType == StorageType.Integer:
-            param.Set(int(value))
-        elif param.StorageType == StorageType.Double:
-            param.Set(float(value))
+        # Type-param? Dan max. één keer per symbol zetten.
+        symbol = getattr(element, 'Symbol', None)
+        is_type_param = (symbol is not None and
+                         param.Element is not None and
+                         param.Element.Id == symbol.Id)
+        cache_key = None
+        if is_type_param:
+            cache_key = (symbol.Id, param_name)
+            if cache_key in _type_params_done:
+                return True
+
+        storage = param.StorageType
+        if storage == StorageType.String:
+            new_val = str(value)
+            if param.HasValue and param.AsString() == new_val:
+                changed = True
+            else:
+                changed = param.Set(new_val)
+        elif storage == StorageType.Integer:
+            new_val = int(value)
+            if param.HasValue and param.AsInteger() == new_val:
+                changed = True
+            else:
+                changed = param.Set(new_val)
+        elif storage == StorageType.Double:
+            new_val = float(value)
+            if param.HasValue and abs(param.AsDouble() - new_val) < 1e-9:
+                changed = True
+            else:
+                changed = param.Set(new_val)
         else:
             return False
-        return True
+
+        if cache_key is not None and changed:
+            _type_params_done[cache_key] = True
+        return bool(changed)
     except (ValueError, TypeError, Exception):
         return False
 
@@ -224,12 +258,11 @@ def set_parameter_value(element, param_name, value):
 def filter_sheets_by_number(sheets, filter_text):
     """Filter sheets op nummer"""
     if not filter_text:
-        return sheets
+        return list(sheets)
 
     filter_lower = filter_text.lower()
     return [s for s in sheets
-            if get_parameter_value(s, "Sheet Number") and
-               filter_lower in get_parameter_value(s, "Sheet Number").lower()]
+            if s.SheetNumber and filter_lower in s.SheetNumber.lower()]
 
 
 def update_sheet_parameters(sheet, params):
@@ -317,14 +350,24 @@ def list_titleblock_param_names(titleblock):
     return sorted(names)
 
 
-def get_titleblock_from_sheet(sheet):
-    """Haal titleblock van sheet"""
-    collector = FilteredElementCollector(doc, sheet.Id)\
+def build_titleblock_map():
+    """Eén collector over alle titleblocks -> {sheet ElementId: titleblock}.
+
+    Vervangt een FilteredElementCollector per sheet (N queries -> 1 query).
+    Bij meerdere titleblocks op één sheet wint de eerste (zelfde gedrag als
+    voorheen).
+    """
+    tb_map = {}
+    collector = FilteredElementCollector(doc)\
         .OfCategory(BuiltInCategory.OST_TitleBlocks)\
         .WhereElementIsNotElementType()
-
-    titleblocks = list(collector)
-    return titleblocks[0] if titleblocks else None
+    for tb in collector:
+        owner_id = tb.OwnerViewId
+        if owner_id is None or owner_id == ElementId.InvalidElementId:
+            continue
+        if owner_id not in tb_map:
+            tb_map[owner_id] = tb
+    return tb_map
 
 
 # ==============================================================================
@@ -374,10 +417,21 @@ def main():
     if not forms.alert(msg, yes=True, no=True):
         return
 
-    # Transaction
+    # Alleen titleblocks ophalen als er ook titleblock-params gekozen zijn
+    need_sheet = any(params.get(k) is not None for k in SHEET_PARAM_KEYS)
+    need_tb = any(params.get(k) is not None for k in TITLEBLOCK_PARAM_KEYS)
+
     output = script.get_output()
-    output.print_md("## Sheet Parameters Update")
-    output.print_md("---")
+    # Output wordt gebufferd en NA de transactie in één keer geprint.
+    # print_md per sheet is een DOM-append in het pyRevit output-window en was
+    # de grootste vertrager bij honderden sheets.
+    lines = ["## Sheet Parameters Update", "---"]
+    diag_lines = []
+
+    _type_params_done.clear()
+    t_start = datetime.datetime.now()
+
+    tb_map = build_titleblock_map() if need_tb else {}
 
     with revit.Transaction("Update Sheet Parameters"):
         updated_sheets = 0
@@ -387,16 +441,20 @@ def main():
         diagnostic_dumped = False
 
         for sheet in sheets:
-            sheet_num = get_parameter_value(sheet, "Sheet Number")
-            sheet_name = get_parameter_value(sheet, "Sheet Name")
+            sheet_num = sheet.SheetNumber
+            sheet_name = sheet.Name
 
-            sheet_updates = update_sheet_parameters(sheet, params)
-            if sheet_updates:
-                updated_sheets += 1
-                output.print_md("**{}** - {}: {}".format(
-                    sheet_num, sheet_name, ", ".join(sheet_updates)))
+            if need_sheet:
+                sheet_updates = update_sheet_parameters(sheet, params)
+                if sheet_updates:
+                    updated_sheets += 1
+                    lines.append("**{}** - {}: {}".format(
+                        sheet_num, sheet_name, ", ".join(sheet_updates)))
 
-            titleblock = get_titleblock_from_sheet(sheet)
+            if not need_tb:
+                continue
+
+            titleblock = tb_map.get(sheet.Id)
             if not titleblock:
                 sheets_zonder_titleblock += 1
                 continue
@@ -409,30 +467,37 @@ def main():
                 # Eerste keer dat NIETS van titleblock-params lukt: dump beschikbare namen
                 if not diagnostic_dumped and not tb_updates:
                     diagnostic_dumped = True
-                    output.print_md("---")
-                    output.print_md(
+                    diag_lines.append("---")
+                    diag_lines.append(
                         "### Diagnose: titleblock op {} "
                         "({})".format(sheet_num, sheet_name))
-                    output.print_md(
-                        "Type: `{}`".format(titleblock.Symbol.FamilyName)
-                        if getattr(titleblock, 'Symbol', None) else "")
-                    output.print_md("**Beschikbare parameter-namen:**")
+                    if getattr(titleblock, 'Symbol', None):
+                        diag_lines.append(
+                            "Type: `{}`".format(titleblock.Symbol.FamilyName))
+                    diag_lines.append("**Beschikbare parameter-namen:**")
                     for name in list_titleblock_param_names(titleblock):
-                        output.print_md("- `{}`".format(name))
+                        diag_lines.append("- `{}`".format(name))
 
-    output.print_md("---")
-    output.print_md("**{} sheets** bijgewerkt".format(updated_sheets))
-    output.print_md("**{} titleblocks** bijgewerkt".format(updated_titleblocks))
+    elapsed = (datetime.datetime.now() - t_start).total_seconds()
+
+    lines.extend(diag_lines)
+    lines.append("---")
+    lines.append("**{} sheets** bijgewerkt".format(updated_sheets))
+    if need_tb:
+        lines.append("**{} titleblocks** bijgewerkt".format(updated_titleblocks))
     if sheets_zonder_titleblock:
-        output.print_md(
+        lines.append(
             "**{} sheets zonder titleblock**".format(sheets_zonder_titleblock))
     if all_failed:
-        output.print_md(
+        lines.append(
             "**Niet gevonden/read-only params:** {}".format(
                 ", ".join(sorted(all_failed))))
+    lines.append("_{} sheets verwerkt in {:.1f} s_".format(len(sheets), elapsed))
 
-    log.info("Voltooid: {} sheets, {} titleblocks, failed_params={}".format(
-        updated_sheets, updated_titleblocks, sorted(all_failed)))
+    output.print_md("\n\n".join(lines))
+
+    log.info("Voltooid in {:.1f}s: {} sheets, {} titleblocks, failed_params={}".format(
+        elapsed, updated_sheets, updated_titleblocks, sorted(all_failed)))
 
 
 if __name__ == '__main__':

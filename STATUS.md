@@ -20,7 +20,7 @@
 | AutoDim | Maatvoering | **WPF** | Stabiel | Automatische maatvoering via Detail Lines |
 | CrossDim | Maatvoering | WinForms | Stabiel | Kruislings dimensioneren |
 | WandVloerAfwerking | Afwerking | WinForms | Stabiel | Wand/vloer afwerkingslagen per ruimte |
-| SheetParameters | Document | **WPF** | Stabiel | Bulk update titleblock parameters |
+| SheetParameters | Document | **WPF** | Stabiel | Bulk update sheet + titleblock parameters (2026-08-31: bulk-performance — gebufferde output, 1 titleblock-collector, skip ongewijzigde waarden) |
 | FilterCreator | Filter | WinForms | Stabiel | Dynamisch filters aanmaken (ook uit gelinkte modellen). Per kanaal kleur-override: voorgrond/achtergrond/lijnen, elk met "geen"-optie + optie element direct te verbergen via filter visibility (21 juli, Revit-test pending) |
 | ScheduleExport | Data Exchange | WinForms | Stabiel | Schedules exporteren naar Excel |
 | ScheduleImport | Data Exchange | WinForms | Stabiel | Excel data importeren in schedules |
