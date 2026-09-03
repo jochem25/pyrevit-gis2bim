@@ -1,6 +1,15 @@
 # 3BM pyRevit Project - TODO
 
-*Laatste update: 21 juli 2026*
+*Laatste update: 3 september 2026*
+
+---
+
+## Materialendatabase — vast id-veld (3 september 2026)
+
+> `lib/materialen_database.json` → v2.1: elk materiaal heeft nu een `"id"`-veld, identiek aan het id in de Open Bouwlab-webtool (`frontend/src/lib/materialsDatabase.ts`). Additief — bestaande IronPython-lezers die het veld negeren blijven werken. Het id is het stabiele koppelvlak tussen Revit-materialen en de lambda-database; hernoemen van een materiaal verandert het id niet meer.
+
+- [ ] **Revit-template koppelen op id** — per materiaal in de template het database-id vastleggen (shared parameter of in de materiaalnaam) en meegeven bij IFC-export; de webtool matcht dan exact (strategie 1 in `ifcMaterialMatcher.ts`) i.p.v. via keywords. [USER is hiermee bezig]
+- [ ] **`CLT (Cross Laminated Timber)` heeft bewust géén id** — de webtool kent 7 specifiekere CLT-varianten; deze generieke entry is niet eenduidig te mappen. Bij gebruik: vervangen door de juiste variant of alsnog een eigen id toekennen.
 
 ---
 
