@@ -6,10 +6,11 @@
 
 ## Materialendatabase — vast id-veld (3 september 2026)
 
-> `lib/materialen_database.json` → v2.1: elk materiaal heeft nu een `"id"`-veld, identiek aan het id in de Open Bouwlab-webtool (`frontend/src/lib/materialsDatabase.ts`). Additief — bestaande IronPython-lezers die het veld negeren blijven werken. Het id is het stabiele koppelvlak tussen Revit-materialen en de lambda-database; hernoemen van een materiaal verandert het id niet meer.
+> `lib/materialen_database.json` → **v3.0, GEGENEREERD bestand**: de Open Bouwlab-webtool (`open-bouwlab/frontend/src/lib/materialsDatabase.ts`) is de enige bron. Elk van de 157 materialen draagt een vast `"id"` — het stabiele koppelvlak tussen Revit-materialen en de lambda-database; hernoemen verandert het id niet. NIET handmatig bewerken; regenereren: `cd open-bouwlab/frontend && npm run generate:materialen -- --out <pad naar deze json>`. Extra velden (`lambda_nat`, `alpha`, `sd_vast`, `merk`) zijn additief; IronPython-lezers gebruiken `.get()` en blijven werken.
 
 - [ ] **Revit-template koppelen op id** — per materiaal in de template het database-id vastleggen (shared parameter of in de materiaalnaam) en meegeven bij IFC-export; de webtool matcht dan exact (strategie 1 in `ifcMaterialMatcher.ts`) i.p.v. via keywords. [USER is hiermee bezig]
-- [ ] **`CLT (Cross Laminated Timber)` heeft bewust géén id** — de webtool kent 7 specifiekere CLT-varianten; deze generieke entry is niet eenduidig te mappen. Bij gebruik: vervangen door de juiste variant of alsnog een eigen id toekennen.
+- [ ] **Generieke `CLT (Cross Laminated Timber)`-entry is vervallen in v3.0** — vervangen door 7 specifieke CLT-varianten (vuren NTA 8800/C24 ETA, grenen, douglas, lariks, Stora Enso, Binderholz BBS). Check bij eerstvolgend gebruik van RcBerekening of bestaande opbouwen die de generieke entry gebruikten een variant moeten kiezen.
+- [ ] **Revit-hertest DbExp/MatExp-export met v3.0-database (namen met ³)** — 3 september 2026: `DbExp`, `MatExp` en `RcBerekening` (`_export_csv`) unicode-veilig gemaakt (`io.open(..., encoding='utf-8-sig')` i.p.v. `open(path, 'w')` + handmatige BOM-write) vooruitlopend op de v3.0-database met materiaalnamen als "Baksteen 700 kg/m³". Fix is alleen code-geanalyseerd, niet in Revit getest. Hertest zodra de v3.0-database (met `³`/`—`-tekens) beschikbaar is: DbExp-export, MatExp-export én RcBerekening CSV-export moeten foutloos wegschrijven en de CSV moet in Excel correct openen (UTF-8 BOM).
 
 ---
 

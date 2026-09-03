@@ -9,6 +9,7 @@ from pyrevit import revit, DB, forms, script
 import os
 import sys
 import json
+import io
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'lib'))
 from bm_logger import get_logger
@@ -144,10 +145,12 @@ def export_to_csv(revit_materials, database, output_path):
     try:
         stats = {'total': 0, 'matched': 0, 'has_lambda': 0, 'has_mu': 0, 'has_cat': 0}
         
-        with open(output_path, 'w') as f:
-            f.write('\xef\xbb\xbf')  # UTF-8 BOM
+        # Unicode-veilig: zowel Revit materiaalnamen als database-matches
+        # (bv. "Baksteen 700 kg/m³") kunnen non-ASCII tekens bevatten.
+        # io.open schrijft UTF-8 en zet de BOM automatisch via 'utf-8-sig'.
+        with io.open(output_path, 'w', encoding='utf-8-sig') as f:
             # Uitgebreide header met categorie
-            f.write("Revit ID;Materiaal Naam;Huidige Lambda;Huidige Mu;Huidige Categorie;Match Type;Voorgestelde Match;Voorgestelde Lambda;Voorgestelde Mu;Voorgestelde Categorie;Importeren (J/N)\n")
+            f.write(u"Revit ID;Materiaal Naam;Huidige Lambda;Huidige Mu;Huidige Categorie;Match Type;Voorgestelde Match;Voorgestelde Lambda;Voorgestelde Mu;Voorgestelde Categorie;Importeren (J/N)\n")
             
             for mat in revit_materials:
                 stats['total'] += 1

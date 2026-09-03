@@ -26,6 +26,7 @@ import os
 import json
 import sys
 import base64
+import io
 
 # UI Template imports
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'lib'))
@@ -1648,17 +1649,21 @@ class RcBerekeningForm(BaseForm):
         path = self.save_file_dialog("CSV (*.csv)|*.csv", "Rc_berekening.csv")
         if path:
             try:
-                with open(path, 'w') as f:
-                    f.write("#;Wandtype;Materiaal;Dikte mm;Lambda;R-waarde;Mu;Sd (m)\n")
+                # Unicode-veilig: l.material komt uit Revit (materiaalnaam via
+                # .NET string) of uit de database-match ("Baksteen 700 kg/m³")
+                # en kan non-ASCII tekens bevatten. io.open + 'utf-8-sig'
+                # schrijft UTF-8 met BOM (Excel-compatibel), net als DbExp/MatExp.
+                with io.open(path, 'w', encoding='utf-8-sig') as f:
+                    f.write(u"#;Wandtype;Materiaal;Dikte mm;Lambda;R-waarde;Mu;Sd (m)\n")
                     for i, l in enumerate(self.lagen):
                         lam = "(spouw)" if l.is_air_gap else ("{:.4f}".format(l.lambda_val) if l.lambda_val else "")
-                        f.write("{};{};{};{:.1f};{};{};{};{}\n".format(
+                        f.write(u"{};{};{};{:.1f};{};{};{};{}\n".format(
                             i+1, l.wall_type or "(hand)", l.material, l.width_mm, lam,
                             "{:.3f}".format(l.r_value) if l.r_value else "",
                             l.mu or "", "{:.2f}".format(l.sd) if l.sd else ""
                         ))
-                    f.write("\nRc;{}\nU;{}\n".format(self.lbl_rc.Text, self.lbl_u.Text))
-                    
+                    f.write(u"\nRc;{}\nU;{}\n".format(self.lbl_rc.Text, self.lbl_u.Text))
+
                     # Vochtbalans toevoegen
                     try:
                         rsi = float(self.txt_inputs["Rsi"].Text.replace(',', '.'))
@@ -1666,11 +1671,11 @@ class RcBerekeningForm(BaseForm):
                     except:
                         rsi, rse = RSI_DEFAULT, RSE_DEFAULT
                     monthly_change, cumulative = calculate_monthly_moisture(self.lagen, rsi, rse)
-                    f.write("\nVochtbalans (g/m2)\n")
-                    f.write(";".join(NL_KLIMAAT['maanden']) + "\n")
-                    f.write("Maandelijks;" + ";".join("{:.1f}".format(m) for m in monthly_change) + "\n")
-                    f.write("Cumulatief;" + ";".join("{:.1f}".format(m) for m in cumulative) + "\n")
-                    
+                    f.write(u"\nVochtbalans (g/m2)\n")
+                    f.write(u";".join(NL_KLIMAAT['maanden']) + u"\n")
+                    f.write(u"Maandelijks;" + u";".join("{:.1f}".format(m) for m in monthly_change) + u"\n")
+                    f.write(u"Cumulatief;" + u";".join("{:.1f}".format(m) for m in cumulative) + u"\n")
+
                 self.show_info("Export klaar!\n\n" + path)
             except Exception as e:
                 self.show_error("Fout: " + str(e))

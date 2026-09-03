@@ -9,6 +9,7 @@ from pyrevit import forms
 import os
 import sys
 import json
+import io
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'lib'))
 from bm_logger import get_logger
@@ -36,10 +37,12 @@ def main():
         forms.alert("Geen materialen in database.", warn_icon=True)
         return
     
-    # Schrijf CSV
-    with open(csv_path, 'w') as f:
-        f.write('\xef\xbb\xbf')  # UTF-8 BOM
-        f.write("Categorie;Naam;Lambda (W/mK);Rd vast (m2K/W);Mu (-);Rho (kg/m3);Keywords\n")
+    # Schrijf CSV (unicode-veilig: materiaalnamen uit de database kunnen
+    # non-ASCII tekens bevatten, bv. "Baksteen 700 kg/m³". io.open schrijft
+    # UTF-8 en zet de BOM automatisch via 'utf-8-sig', dus geen handmatige
+    # BOM-write meer nodig.
+    with io.open(csv_path, 'w', encoding='utf-8-sig') as f:
+        f.write(u"Categorie;Naam;Lambda (W/mK);Rd vast (m2K/W);Mu (-);Rho (kg/m3);Keywords\n")
         
         for mat in materialen:
             cat = mat.get('categorie', '')
