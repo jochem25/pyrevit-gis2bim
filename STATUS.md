@@ -1,15 +1,16 @@
 # 3BM pyRevit Project - Status
 
-*Laatste update: 21 juli 2026*
+*Laatste update: 5 september 2026*
 
 ---
 
 ## Extensies Overzicht
 
-### bouwkunde.extension (20 tools)
+### bouwkunde.extension (21 tools)
 
 | Tool | Panel | UI Framework | Status | Beschrijving |
 |------|-------|--------------|--------|--------------|
+| DekvloerHSB | QC | pyRevit forms | **Nieuw** | Dekvloercontour 2,5 mm terugleggen op HSB-wandvlak via SketchEditScope (werkt op groepsleden, geen ungroup); modi dry-run/selectie/alles, CSV-log (4 sep; 2 logruns aanwezig, dus in Revit gedraaid) |
 | RcBerekening | Bouwbesluit | WinForms | Stabiel | Rc/U-waarde + Glaser condensatie-analyse, PDF rapport |
 | VentilatieBalans | Bouwbesluit | WinForms | Stabiel | Ventilatiebalans per ruimtezone |
 | BblToets (Bbl Toets) | Bouwbesluit | WinForms | **Nieuw** | Bbl-toets bouwaanvraag: ventilatie (§4.3.5, eis per ruimte + Ducoton 10 'ZR' roosterlengtes) + daglicht (§4.3.7, equivalente daglichtopp. 10%/0,5 m² met ramen per ruimte, OK/TEKORT-toets). Tekst-tabel als TextNote op view (default `3BM_2mm`) met tab-uitlijning op de Tab Size van het teksttype, ruimte-selectie via vinkkolom + Revit-voorselectie, JSON naar `%TEMP%\3bm_exchange` (15 juli) |
